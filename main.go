@@ -4,14 +4,16 @@ import (
 	_ "bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
 )
 
 const mainPrefix = "├───"
 const subPrefix = "└───"
-const levelPrefix = "│\t"
+const levelPrefix = "│"
+const tab = "\t"
 
 var level = 1
 
@@ -29,86 +31,64 @@ func main() {
 }
 
 func dirTree(out io.Writer, path string, files bool) error {
-	pathStat, err := os.Stat(path) // получаем информацию о полученном пути
-	if err != nil {
-		return err
+	err := printTree(out, path, files, "")
+
+	return fmt.Errorf("%v\n", err)
+}
+
+func printTree(out io.Writer, path string, files bool, prefix string) error {
+	readDir, _ := os.ReadDir(path)
+	var filteredDir []fs.DirEntry
+
+	if !files {
+		for _, f := range readDir {
+			if f.IsDir() {
+				filteredDir = append(filteredDir, f)
+			}
+		}
+	} else {
+		filteredDir = readDir
 	}
 
-	if pathStat.IsDir() { // если это директория
-		readDir, err := os.ReadDir(path)
+	for i, entry := range filteredDir {
+		curPrefix := prefix
+		var nextPrefix string
+
+		if i == len(filteredDir)-1 {
+			nextPrefix = curPrefix + tab
+			curPrefix = prefix + subPrefix
+		} else {
+			nextPrefix = prefix + levelPrefix + tab
+			curPrefix = prefix + mainPrefix
+		}
+
+		output := curPrefix + entry.Name()
+
+		if !entry.IsDir() {
+			sizeInfo := getFileSize(filepath.Join(path, entry.Name()))
+			output += " " + sizeInfo
+		}
+		_, err := fmt.Fprintf(out, "%s\n", output)
 		if err != nil {
 			return err
 		}
-
-		for idx, entry := range readDir {
-			if entry.IsDir() {
-				_, err := fmt.Fprintf(out, "%s\n", strings.Repeat(mainPrefix, level)+entry.Name())
-				if err != nil {
-					return err
-				}
-
-				level++
-				err = dirTree(out, filepath.Join(path, entry.Name()), files)
-				if err != nil {
-					return err
-				}
-
-			} else if files {
-				_, err := fmt.Fprintf(out, "%s\n", strings.Repeat(levelPrefix, level-1)+mainPrefix+entry.Name())
-				if err != nil {
-					return err
-				}
-			}
-
-			if idx < len(readDir)-1 {
-				continue
-			}
+		err = printTree(out, filepath.Join(path, entry.Name()), files, nextPrefix)
+		if err != nil {
+			return err
 		}
-		level = 1
-
-	} else if files {
-		_, _ = fmt.Fprintf(out, "%s\n", strings.Repeat(mainPrefix, level)+path)
 	}
 
-	//for _, entry := range readDir {
-	//	if entry.IsDir() {
-	//		_, err := fmt.Fprintf(out, "%s\n", strings.Repeat(mainPrefix, level)+entry.Name())
-	//		if err != nil {
-	//			return err
-	//		}
-	//	} else if files {
-	//		_, err := fmt.Fprintf(out, "%s\n", strings.Repeat(mainPrefix, level)+entry.Name())
-	//		if err != nil {
-	//			return err
-	//		}
-	//	}
-	//
-	//	level++
-	//	err := dirTree(out, filepath.Join(path, entry.Name()), files)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	//if entry.IsDir() {
-	//	//	level++
-	//	//	dirPath := filepath.Join(path, entry.Name())
-	//	//	entries, err := os.ReadDir(dirPath)
-	//	//	if err != nil {
-	//	//		continue
-	//	//	}
-	//	//	for _, dirEntry := range entries {
-	//	//		if dirEntry.IsDir() {
-	//	//			_, err := fmt.Fprintf(out, "%s\n", levelPrefix+mainPrefix+dirEntry.Name())
-	//	//			if err != nil {
-	//	//				return err
-	//	//			}
-	//	//		}
-	//	//	}
-	//	//
-	//	//}
-	//
-	//	level = 1
-	//}
+	return nil
+}
 
-	return fmt.Errorf("%v\n", out)
+func getFileSize(fileName string) string {
+	fInfo, _ := os.Stat(fileName)
+	var sizeInfo string
+	if fInfo.Size() == 0 {
+		sizeInfo = "(empty)"
+	} else {
+		sizeInfo = "(" + strconv.FormatInt(fInfo.Size(), 10) + "b)"
+	}
+
+	return sizeInfo
 }
