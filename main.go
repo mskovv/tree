@@ -15,16 +15,14 @@ const subPrefix = "└───"
 const levelPrefix = "│"
 const tab = "\t"
 
-var level = 1
-
 func main() {
 	out := os.Stdout
-	//if !(len(os.Args) == 2 || len(os.Args) == 3) {
-	//	panic("usage go run main.go . [-f]")
-	//}
-	//path := os.Args[1]
-	//printFiles := len(os.Args) == 3 && os.Args[2] == "-f"
-	err := dirTree(out, "testdata", true)
+	if !(len(os.Args) == 2 || len(os.Args) == 3) {
+		panic("usage go run main.go . [-f]")
+	}
+	path := os.Args[1]
+	printFiles := len(os.Args) == 3 && os.Args[2] == "-f"
+	err := dirTree(out, path, printFiles)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -32,8 +30,11 @@ func main() {
 
 func dirTree(out io.Writer, path string, files bool) error {
 	err := printTree(out, path, files, "")
+	if err != nil {
+		return fmt.Errorf("%v\n", err)
+	}
 
-	return fmt.Errorf("%v\n", err)
+	return nil
 }
 
 func printTree(out io.Writer, path string, files bool, prefix string) error {
